@@ -29,6 +29,40 @@ Parameters:
     Type: String
     Default: 10.0.21.0/24
 
+  WebServerImageId:
+    Description: EC2 WebServer image id
+    Type: String
+    Default: ami-0a313d6098716f372
+
+  WebServerEC2Type:
+    Description: EC2 WebServer instance type
+    Type: String
+    Default: t2.small
+
+  WebServerMinCount:
+    Description: The initial required count of WebServer instances
+    Type: Number
+    Default: '1'
+
+  WebServerMaxCount:
+    Description: The Maximum allowed count of WebServer instances
+    Type: Number
+    Default: '3'
+
+  DBInstanceType:
+    Description: DB Server instance type
+    Type: String
+    Default: db.t2.small
+
+  DBStorage:
+    Description: The size of the database in GB
+    Type: Number
+    Default: '3'
+
+  KeyName:
+      Description: EC2 KeyPair for SSH access to the instances provisioned
+      Type: 'AWS::EC2::KeyPair::KeyName'
+
 Resources:
   VPC:
     Type: AWS::EC2::VPC
@@ -103,7 +137,7 @@ Resources:
       VpcId: !Ref VPC
       Tags:
         - Key: Name
-          Value: !Sub ${EnvironmentName} Public Routes
+          Value: !Sub ${EnvName} Public Routes
 
   DefaultPublicRoute:
     Type: AWS::EC2::Route
@@ -125,6 +159,59 @@ Resources:
       RouteTableId: !Ref PublicRouteTable
       SubnetId: !Ref WebSubnet2
 
+  ApplicationLoadBalancer:
+    Type: 'AWS::ElasticLoadBalancingV2::LoadBalancer'
+    Properties:
+      Subnets: [!Ref WebSubnet1, !Ref WebSubnet2]
+
+  ALBListener:
+    Type: 'AWS::ElasticLoadBalancingV2::Listener'
+    Properties:
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref ALBTargetGroup
+      LoadBalancerArn: !Ref ApplicationLoadBalancer
+      Port: '80'
+      Protocol: HTTP
+  ALBTargetGroup:
+    Type: 'AWS::ElasticLoadBalancingV2::TargetGroup'
+    Properties:
+      Port: 80
+      Protocol: HTTP
+      VpcId: !Ref VPC
+
+  WebServerSecurityGroup:
+    Type: 'AWS::EC2::SecurityGroup'
+    Properties:
+      GroupDescription: HTTP access via port 80 to ALB
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: '80'
+          ToPort: '80'
+          SourceSecurityGroupId: !Select
+            - 0
+            - !GetAtt
+              - ApplicationLoadBalancer
+              - SecurityGroups
+      VpcId: !Ref VPC
+
+  ASGLaunchConfig:
+    Type: 'AWS::AutoScaling::LaunchConfiguration'
+    Properties:
+      ImageId: !Ref WebServerImageId
+      InstanceType: !Ref WebServerEC2Type
+      SecurityGroups:
+        - !Ref WebServerSecurityGroup
+      KeyName: !Ref KeyName
+
+  WebServerASG:
+    Type: 'AWS::AutoScaling::AutoScalingGroup'
+    Properties:
+      VPCZoneIdentifier: [!Ref WebSubnet1, !Ref WebSubnet2]
+      LaunchConfigurationName: !Ref ASGLaunchConfig
+      MinSize: !Ref WebServerMinCount
+      MaxSize: !Ref WebServerMaxCount
+      TargetGroupARNs: [!Ref ALBTargetGroup]
 
 Outputs:
   VPC:
