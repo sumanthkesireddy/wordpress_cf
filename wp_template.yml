@@ -4,8 +4,8 @@ Parameters:
     Description: Based on Env(Prod or Dev), HA or minimal stack is provisioned
     Type: String
     AllowedValues:
-      - 'prod'
-      - 'dev'
+      - 'Prod'
+      - 'Dev'
     ConstraintDescription: must be either prod or dev.
 
   VpcCIDR:
@@ -42,11 +42,13 @@ Parameters:
     Description: The initial required count of Prod WebServer instances(always=1 for dev)
     Type: Number
     Default: '1'
+    MinValue: '1'
 
   WebServerMaxCount:
     Description: The Maximum allowed count of Prod WebServer instances(always=1 for dev)
     Type: Number
     Default: '1'
+    MinValue: '1'
 
   DBInstanceType:
     Description: DB instance type
@@ -54,9 +56,10 @@ Parameters:
     Default: db.t2.small
 
   DBStorage:
-    Description: The size of the database in GB
+    Description: The size of the database in GB (minium 5GB)
     Type: Number
-    Default: '3'
+    Default: '5'
+    MinValue: '5'
 
   DBName:
     Description: WordPress database name
@@ -86,7 +89,7 @@ Mappings:
 
 Conditions:
 
-  conditionIsProd !Equals [ !Ref EnvName, "Prod" ]
+  conditionIsProd: !Equals [ !Ref EnvName, Prod ]
 
 Resources:
   VPC:
@@ -193,7 +196,7 @@ Resources:
           FromPort: '80'
           ToPort: '80'
           CidrIp: 0.0.0.0/0
-      VpcId: !Ref VpcId
+      VpcId: !Ref VPC
 
   ApplicationLoadBalancer:
     Type: 'AWS::ElasticLoadBalancingV2::LoadBalancer'
@@ -264,9 +267,11 @@ Resources:
               tar zxvf latest.tar.gz
             - |
               mv wordpress/* /var/www/html
+            - |
+              cd /var/www/html
             - >
-              cp /var/www/html/wp-config-sample.php
-              /var/www/html/wp-config.php
+              cp wp-config-sample.php
+              wp-config.php
             - sed -i "s/'database_name_here'/'
             - !Ref DBName
             - |
@@ -322,7 +327,7 @@ Resources:
     Properties:
       DBName: !Ref DBName
       Engine: MySQL
-      MultiAZ: conditionIsProd
+      MultiAZ: !If [conditionIsProd, true, false]
       MasterUsername: !Ref DBMasterUser
       MasterUserPassword: !Ref DBMasterPassword
       DBInstanceClass: !Ref DBInstanceType
