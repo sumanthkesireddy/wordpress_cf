@@ -1,8 +1,12 @@
 Parameters:
 
   EnvName:
-    Description: Env name that will be Tagged to resources
+    Description: Based on Env(Prod or Dev), HA or minimal stack is provisioned
     Type: String
+    AllowedValues:
+      - 'prod'
+      - 'dev'
+    ConstraintDescription: must be either prod or dev.
 
   VpcCIDR:
     Description: Enter the IP range for VPC
@@ -35,14 +39,14 @@ Parameters:
     Default: t2.small
 
   WebServerMinCount:
-    Description: The initial required count of WebServer instances
+    Description: The initial required count of Prod WebServer instances(always=1 for dev)
     Type: Number
     Default: '1'
 
   WebServerMaxCount:
-    Description: The Maximum allowed count of WebServer instances
+    Description: The Maximum allowed count of Prod WebServer instances(always=1 for dev)
     Type: Number
-    Default: '3'
+    Default: '1'
 
   DBInstanceType:
     Description: DB instance type
@@ -80,6 +84,9 @@ Mappings:
     ap-southeast-2:
       "ubuntu": "ami-0b76c3b150c6b1423"
 
+Conditions:
+
+  conditionIsProd !Equals [ !Ref EnvName, "Prod" ]
 
 Resources:
   VPC:
@@ -287,8 +294,8 @@ Resources:
     Properties:
       VPCZoneIdentifier: [!Ref WebSubnet1, !Ref WebSubnet2]
       LaunchConfigurationName: !Ref ASGLaunchConfig
-      MinSize: !Ref WebServerMinCount
-      MaxSize: !Ref WebServerMaxCount
+      MinSize: !If [conditionIsProd, !Ref WebServerMinCount, 1]
+      MaxSize: !If [conditionIsProd, !Ref WebServerMaxCount, 1]
       TargetGroupARNs: [!Ref ALBTargetGroup]
 
   DBServerSecurityGroup:
@@ -314,7 +321,7 @@ Resources:
     Properties:
       DBName: !Ref DBName
       Engine: MySQL
-      MultiAZ: 'true'
+      MultiAZ: conditionIsProd
       MasterUsername: !Ref DBMasterUser
       MasterUserPassword: !Ref DBMasterPassword
       DBInstanceClass: !Ref DBInstanceType
@@ -326,6 +333,11 @@ Resources:
           - GroupId
 
 Outputs:
-  VPC:
-    Description: A reference to the created VPC
-    Value: !Ref VPC
+  URL:
+    Value: !Join
+      - ''
+      - - 'http://'
+        - !GetAtt
+          - ApplicationLoadBalancer
+          - DNSName
+    Description: WordPress URL
