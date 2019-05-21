@@ -29,11 +29,6 @@ Parameters:
     Type: String
     Default: 10.0.21.0/24
 
-  WebServerImageId:
-    Description: EC2 WebServer image id
-    Type: String
-    Default: ami-0a313d6098716f372
-
   WebServerEC2Type:
     Description: EC2 WebServer instance type
     Type: String
@@ -70,12 +65,21 @@ Parameters:
     Type: String
 
   DBMasterPassword:
+    NoEcho: 'true'
     Description: Password for master user
     Type: String
 
   KeyName:
       Description: EC2 KeyPair for SSH access to the instances provisioned
       Type: 'AWS::EC2::KeyPair::KeyName'
+
+Mappings:
+  RegionImageMap:
+    us-east-1:
+      "ubuntu": "ami-0a313d6098716f372"
+    ap-southeast-2:
+      "ubuntu": "ami-0b76c3b150c6b1423"
+
 
 Resources:
   VPC:
@@ -173,10 +177,23 @@ Resources:
       RouteTableId: !Ref PublicRouteTable
       SubnetId: !Ref WebSubnet2
 
+  ALBSecurityGroup:
+    Type: 'AWS::EC2::SecurityGroup'
+    Properties:
+      GroupDescription: HTTP access via port 80 from anywhere
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: '80'
+          ToPort: '80'
+          CidrIp: 0.0.0.0/0
+      VpcId: !Ref VpcId
+
   ApplicationLoadBalancer:
     Type: 'AWS::ElasticLoadBalancingV2::LoadBalancer'
     Properties:
       Subnets: [!Ref WebSubnet1, !Ref WebSubnet2]
+      SecurityGroups:
+        - !Ref ALBSecurityGroup
 
   ALBListener:
     Type: 'AWS::ElasticLoadBalancingV2::Listener'
@@ -213,11 +230,57 @@ Resources:
   ASGLaunchConfig:
     Type: 'AWS::AutoScaling::LaunchConfiguration'
     Properties:
-      ImageId: !Ref WebServerImageId
+      ImageId: !FindInMap [RegionImageMap, !Ref "AWS::Region", ubuntu]
       InstanceType: !Ref WebServerEC2Type
       SecurityGroups:
         - !Ref WebServerSecurityGroup
       KeyName: !Ref KeyName
+      UserData: !Base64
+        'Fn::Join':
+          - ''
+          - - |
+              #!/bin/bash -xe
+            - |
+              apt-get update
+            - |
+              apt-get install apache2 -y
+            - |
+              apt-get install php -y
+            - |
+              apt-get install libapache2-mod-php -y
+            - |
+              apt-get install php-mysql -y
+            - |
+              wget https://wordpress.org/latest.tar.gz
+            - |
+              tar zxvf latest.tar.gz
+            - |
+              mv wordpress/* /var/www/html
+            - >
+              cp /var/www/html/wp-config-sample.php
+              /var/www/html/wp-config.php
+            - sed -i "s/'database_name_here'/'
+            - !Ref DBName
+            - |
+              '/g" wp-config.php
+            - sed -i "s/'username_here'/'
+            - !Ref DBMasterUser
+            - |
+              '/g" wp-config.php
+            - sed -i "s/'password_here'/'
+            - !Ref DBMasterPassword
+            - |
+              '/g" wp-config.php
+            - sed -i "s/'localhost'/'
+            - !GetAtt
+              - DBServer
+              - Endpoint.Address
+            - |
+              '/g" wp-config.php
+            - |
+              rm /var/www/html/index.html
+            - |
+              systemctl restart apache2
 
   WebServerASG:
     Type: 'AWS::AutoScaling::AutoScalingGroup'
@@ -243,6 +306,7 @@ Resources:
     Type: AWS::RDS::DBSubnetGroup
     Properties:
       DBSubnetGroupDescription: subnet group for DB servers
+      DBSubnetGroupName: DBSubnetGroup
       SubnetIds: [!Ref DBSubnet1, !Ref DBSubnet2]
 
   DBServer:
@@ -255,7 +319,7 @@ Resources:
       MasterUserPassword: !Ref DBMasterPassword
       DBInstanceClass: !Ref DBInstanceType
       AllocatedStorage: !Ref DBStorage
-      DBSubnetGroupName: DBServerSubnetGroup
+      DBSubnetGroupName: DBSubnetGroup
       VPCSecurityGroups:
         - !GetAtt
           - DBServerSecurityGroup
