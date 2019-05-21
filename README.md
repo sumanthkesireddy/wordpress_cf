@@ -3,8 +3,8 @@ creates HA wordpress site using cloud formation template
 
 ### Prerequisites:
 
-AWS account
-AWS CLI(optional)
+- AWS account
+- AWS CLI(optional)
 
 ### Running the template
 
