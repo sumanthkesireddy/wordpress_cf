@@ -4,13 +4,14 @@ creates HA wordpress site using cloud formation template
 ### Prerequisites:
 
 - AWS account
+- AWS Keypair in corresponding regions to create instances
 - AWS CLI(optional)
 
 ### Running the template
 
 - Go to AWS console and choose Cloudformation from list of services
 - Choose create stack option and use the downloaded template as input 
-- Provide input parameters. 
+- Fill input parameters(NOTE: you need an existing keypair for creating your instances - cannot create keypair with template)
 - Based on environment provided as input(prod or dev), your site will be deployed in HA or minimal mode
 - Execute stack. It takes some time to create all the resources(RDS takes time). Once your stack is created, you can click on url of your site in the output.
 - You can also use AWS CLI to create stack (ref: https://docs.aws.amazon.com/cli/latest/reference/cloudformation/index.html)
