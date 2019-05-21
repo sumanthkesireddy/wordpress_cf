@@ -50,7 +50,7 @@ Parameters:
     Default: '3'
 
   DBInstanceType:
-    Description: DB Server instance type
+    Description: DB instance type
     Type: String
     Default: db.t2.small
 
@@ -58,6 +58,20 @@ Parameters:
     Description: The size of the database in GB
     Type: Number
     Default: '3'
+
+  DBName:
+    Description: WordPress database name
+    Type: String
+    Default: wordpress
+
+  DBMasterUser:
+    NoEcho: 'true'
+    Description: Master username for the database
+    Type: String
+
+  DBMasterPassword:
+    Description: Password for master user
+    Type: String
 
   KeyName:
       Description: EC2 KeyPair for SSH access to the instances provisioned
@@ -173,6 +187,7 @@ Resources:
       LoadBalancerArn: !Ref ApplicationLoadBalancer
       Port: '80'
       Protocol: HTTP
+
   ALBTargetGroup:
     Type: 'AWS::ElasticLoadBalancingV2::TargetGroup'
     Properties:
@@ -212,6 +227,39 @@ Resources:
       MinSize: !Ref WebServerMinCount
       MaxSize: !Ref WebServerMaxCount
       TargetGroupARNs: [!Ref ALBTargetGroup]
+
+  DBServerSecurityGroup:
+    Type: 'AWS::EC2::SecurityGroup'
+    Properties:
+      GroupDescription: database access for webservers
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: '3306'
+          ToPort: '3306'
+          SourceSecurityGroupId: !Ref WebServerSecurityGroup
+      VpcId: !Ref VPC
+
+  DBServerSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupDescription: subnet group for DB servers
+      SubnetIds: [!Ref DBSubnet1, !Ref DBSubnet2]
+
+  DBServer:
+    Type: 'AWS::RDS::DBInstance'
+    Properties:
+      DBName: !Ref DBName
+      Engine: MySQL
+      MultiAZ: 'true'
+      MasterUsername: !Ref DBMasterUser
+      MasterUserPassword: !Ref DBMasterPassword
+      DBInstanceClass: !Ref DBInstanceType
+      AllocatedStorage: !Ref DBStorage
+      DBSubnetGroupName: DBServerSubnetGroup
+      VPCSecurityGroups:
+        - !GetAtt
+          - DBServerSecurityGroup
+          - GroupId
 
 Outputs:
   VPC:
