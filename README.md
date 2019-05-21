@@ -9,7 +9,8 @@ creates HA wordpress site using cloud formation template
 ### Running the template
 
 - Go to AWS console and choose Cloudformation from list of services
-- Choose create stack option and use the downloaded template as input and execute
+- Choose create stack option and use the downloaded template as input 
+- Provide input parameters and execute
 - You can also use AWS CLI to execute the template (ref: https://docs.aws.amazon.com/cli/latest/reference/cloudformation/index.html)
 
 ### Note
