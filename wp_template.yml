@@ -215,6 +215,7 @@ Resources:
   ALBTargetGroup:
     Type: 'AWS::ElasticLoadBalancingV2::TargetGroup'
     Properties:
+      HealthCheckPath: /wordpress/wp-admin/install.php
       Port: 80
       Protocol: HTTP
       VpcId: !Ref VPC
